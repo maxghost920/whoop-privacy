@@ -10,13 +10,32 @@ class H(http.server.BaseHTTPRequestHandler):
         q=urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         code=q.get('code',[None])[0]
         if not code:
-            self.send_response(400);self.end_headers();self.wfile.write(b'No code');return
+            err = q.get('error',['unknown'])[0]
+            desc = q.get('error_description',[''])[0]
+            self.send_response(400);self.end_headers()
+            self.wfile.write(f'Error: {err} - {desc}'.encode())
+            print(f'ERROR: {err} - {desc}')
+            return
+        print(f'Got auth code, exchanging for tokens...')
         d=urllib.parse.urlencode({'grant_type':'authorization_code','code':code,'redirect_uri':RU,'client_id':CID,'client_secret':SEC}).encode()
-        r=urllib.request.urlopen(urllib.request.Request('https://api.prod.whoop.com/oauth/oauth2/token',d,{'Content-Type':'application/x-www-form-urlencoded'}))
-        t=json.loads(r.read())
-        self.send_response(200);self.send_header('Content-Type','text/html');self.end_headers()
-        self.wfile.write(b'<h1>Done! Copy the JSON from your terminal.</h1>')
-        print('\n' + json.dumps(t) + '\n')
+        req=urllib.request.Request('https://api.prod.whoop.com/oauth/oauth2/token',d,{
+            'Content-Type':'application/x-www-form-urlencoded',
+            'User-Agent':'WhoopSync/1.0',
+        })
+        try:
+            r=urllib.request.urlopen(req)
+            t=json.loads(r.read())
+            self.send_response(200);self.send_header('Content-Type','text/html');self.end_headers()
+            self.wfile.write(b'<h1>Done! Copy the JSON from your terminal.</h1>')
+            print('\n=== PASTE THIS INTO DISCORD ===')
+            print(json.dumps(t))
+            print('=== END ===\n')
+        except urllib.error.HTTPError as e:
+            body = e.read().decode()
+            print(f'\nToken exchange failed: {e.code}')
+            print(f'Response: {body}\n')
+            self.send_response(e.code);self.end_headers()
+            self.wfile.write(f'Token exchange failed: {e.code}\n{body}'.encode())
         import threading;threading.Timer(1,lambda:sys.exit(0)).start()
     def log_message(self,*a):pass
 http.server.HTTPServer(('localhost',3000),H).serve_forever()
