@@ -1,4 +1,4 @@
-import http.server, urllib.parse, json, urllib.request, sys, webbrowser, secrets, base64
+import http.server, urllib.parse, json, urllib.request, sys, webbrowser, secrets
 CID='f972e6d6-cc12-44fe-a93b-6d0710ef5a51'
 SEC='733ec889e1304499e1cd0e6868b895d2a89bef7ca10d0a57c32663055a7f1a30'
 RU='http://localhost:3000/callback'
@@ -17,11 +17,15 @@ class H(http.server.BaseHTTPRequestHandler):
             self.send_response(400);self.end_headers();self.wfile.write(f'Error: {err}'.encode())
             return
         print(f'Got auth code, exchanging for tokens...')
-        d=urllib.parse.urlencode({'grant_type':'authorization_code','code':code,'redirect_uri':RU}).encode()
-        creds=base64.b64encode(f'{CID}:{SEC}'.encode()).decode()
+        d=urllib.parse.urlencode({
+            'grant_type':'authorization_code',
+            'code':code,
+            'redirect_uri':RU,
+            'client_id':CID,
+            'client_secret':SEC,
+        }).encode()
         req=urllib.request.Request('https://api.prod.whoop.com/oauth/oauth2/token',d,{
             'Content-Type':'application/x-www-form-urlencoded',
-            'Authorization':f'Basic {creds}',
             'User-Agent':'WhoopSync/1.0',
         })
         try:
@@ -34,7 +38,7 @@ class H(http.server.BaseHTTPRequestHandler):
             print('=== END ===\n')
         except urllib.error.HTTPError as e:
             body=e.read().decode()
-            print(f'\nFAILED {e.code}: {body}\n')
+            print(f'\nFailed: {body}\n')
             self.send_response(500);self.end_headers();self.wfile.write(f'Failed: {body}'.encode())
         import threading;threading.Timer(1,lambda:sys.exit(0)).start()
     def log_message(self,*a):pass
